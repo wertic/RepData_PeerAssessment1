@@ -1,25 +1,136 @@
 ---
 title: "Reproducible Research: Peer Assessment 1"
 output: 
-  html_document:
-    keep_md: true
+html_document:
+keep_md: true
 ---
 
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.path='figure/',
+                      warning=FALSE, message=FALSE)
+```
 
-## Loading and preprocessing the data
+## Step 1. Loading and preprocessing the data
+
+The dataset is stored in activity.csv (unpacked from activity.zip) and there are 17.568 observations. 
+The following code unpacks the file in "data folder"" and loads in "data" variable.
+
+The variables included in research dataset are:
+
+* **steps**: Number of steps taking in a 5-minute interval (missing values are coded as NA)
+* **date**: The date on which the measurement was taken in YYYY-MM-DD format
+* **interval**: Identifier for the 5-minute interval in which measurement was taken
 
 
+```{r}
+  if (!file.exists("./data")) {
+    dir.create("./data");
+  }
+  if (!file.exists("./data/activity.csv")) {
+    unzip("activity.zip", exdir = "data");
+  }  
+  data <- read.csv("./data/activity.csv")
 
-## What is mean total number of steps taken per day?
+```
+
+Number of rows in the given dataset:
+```{r echo=FALSE}
+
+nrow(data)
+
+```
 
 
+## Step 2. What is mean total number of steps taken per day?
 
-## What is the average daily activity pattern?
+The following code calculates total number if steps per day:
+```{r}
+  maindata <- aggregate(. ~ date, data = data, sum)
+  maindata[, c("date", "steps")]
 
+```
 
+Histogram of the disribution of number of steps taken per day:
+```{r steps_per_day_hist, warning=FALSE}
+  library(ggplot2)
+  ggplot(maindata, aes(x=steps)) +
+    geom_histogram(colour="black", fill="blue")
+```
+
+Mean and Median of steps per day:
+```{r}
+  mean(maindata$steps)
+  median(maindata$steps)
+```
+
+## Step 3. What is the average daily activity pattern?
+
+Averages of steps for each time interval across days:
+```{r}
+  intraday <- aggregate(. ~ interval, data= data, mean)[,c("interval", "steps")]
+```
+
+Plot shows distribution of number of steps over the day:
+```{r steps_per_5minutes_dist, warning=FALSE}
+  ggplot(intraday, aes(x=interval, y=steps)) + geom_line(colour="green")
+```
+
+Maximum number of steps was made in the following 5-minute interval:
+```{r}
+  intraday[max(intraday$steps) == intraday$steps, "interval"]
+
+```
 
 ## Imputing missing values
 
+Amount of rows with NA:
+```{r}
+sum(is.na(data$steps))
+```
 
+Filling missing values with average of steps for same 5-minute intervals on other day:
+```{r}
+  fulldata <- merge(x=data, y=intraday, by="interval", all.x = TRUE)
+  fulldata[is.na(fulldata$steps.x),"steps.x"] <- fulldata[is.na(fulldata$steps.x),"steps.y"]
+```
+
+Aggregation data by day:
+```{r}
+  maindataFull <- aggregate(. ~ date, data = fulldata, sum)[, c("date", "steps.x")]
+
+```
+
+Histogram of the disribution of amount of steps:
+```{r steps_per_day_hist_full, warning=FALSE}
+  ggplot(maindataFull, aes(x=steps.x)) +
+    geom_histogram(colour="black", fill="blue")
+```
+
+Mean and Median of steps per day:
+```{r}
+  mean(maindataFull$steps.x)
+  median(maindataFull$steps.x)
+```
+
+The shape of histogram has not changed much, some bars have higher values. However, median and mean values are equals now what could be explained by usage of average for 5-minutes interval to replace empty values.
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+Creating wday xolumn with weekday/weekend factor:
+```{r}
+fulldata$wday <- factor(ifelse(weekdays(as.Date(fulldata$date)) %in% c("Saturday", "Sunday"), "weekend", "weekday"))
+```
+
+Computing average data by 5-minutes intervals:
+```{r}
+intradayWithDays <- aggregate(steps.x ~ wday + interval, data = fulldata, mean)
+```
+
+Results on plot:
+```{r steps_per_day_wday}
+ggplot(intradayWithDays, aes(x=interval, y=steps.x)) + 
+    geom_line(colour="blue") +
+    facet_grid(wday ~ .) +
+    ylab("Steps by 5-minutes interval") +
+    ggtitle("Step distribution by weekday and weekend")
+```
